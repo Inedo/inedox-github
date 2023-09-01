@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.ComponentModel;
+using System.Runtime.CompilerServices;
 using System.Threading;
 using Inedo.Extensibility.Git;
 using Inedo.Extensions.GitHub.Clients;
@@ -15,16 +16,21 @@ namespace Inedo.Extensions.GitHub
         public override bool HasDefaultApiUrl => true;
         public override string PasswordDisplayName => "Personal access token";
 
-        public override IAsyncEnumerable<string> GetNamespacesAsync(GitServiceCredentials credentials, CancellationToken cancellationToken = default)
+        protected override async IAsyncEnumerable<string> GetNamespacesAsync(GitHubAccount credentials, [EnumeratorCancellation]CancellationToken cancellationToken = default)
         {
             ArgumentNullException.ThrowIfNull(credentials);
-            var client = new GitHubClient(credentials.ServiceUrl, credentials.UserName, credentials.Password, null);
-            return client.GetOrganizationsAsync(cancellationToken);
+            var client = new GitHubClient(credentials.ServiceUrl, credentials.UserName, credentials.Password, this);
+            
+            await foreach (var org in client.GetOrganizationsAsync(cancellationToken))
+                yield return org;
+            yield return credentials.UserName;
         }
-        public override IAsyncEnumerable<string> GetRepositoryNamesAsync(GitServiceCredentials credentials, string serviceNamespace, CancellationToken cancellationToken = default)
+        protected override IAsyncEnumerable<string> GetRepositoryNamesAsync(GitHubAccount credentials, string serviceNamespace, CancellationToken cancellationToken = default)
         {
-            var client = new GitHubClient(credentials.ServiceUrl, credentials.UserName, credentials.Password);
-            return client.GetRepositoriesAsync(serviceNamespace, cancellationToken);
+            var client = new GitHubClient(credentials.ServiceUrl, credentials.UserName, credentials.Password, this);
+            return serviceNamespace == null || string.Equals(credentials.UserName, serviceNamespace, StringComparison.OrdinalIgnoreCase)
+                ? client.GetUserRepositoriesAsync(credentials.UserName, cancellationToken)
+                : client.GetOrgRepositoriesAsync(serviceNamespace, cancellationToken);
         }
     }
 }

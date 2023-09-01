@@ -10,9 +10,7 @@ using Inedo.Extensions.GitHub.Configurations;
 
 namespace Inedo.Extensions.GitHub.Operations.Releases
 {
-    [DisplayName("Ensure GitHub Release")]
     [Description("Creates or updates a tagged release in a GitHub repository.")]
-    [Tag("source-control"), Tag("git"), Tag("github")]
     [ScriptAlias("Ensure-Release")]
     [ScriptAlias("Ensure-GitHub-Release", Obsolete = true)]
     [ScriptNamespace("GitHub", PreferUnqualified = false)]

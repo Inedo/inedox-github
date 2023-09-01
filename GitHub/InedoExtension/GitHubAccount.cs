@@ -2,6 +2,7 @@
 using System.Security;
 using Inedo.Documentation;
 using Inedo.Extensibility.Git;
+using Inedo.Extensibility.IssueTrackers;
 using Inedo.Serialization;
 using Inedo.Web;
 
@@ -10,7 +11,7 @@ namespace Inedo.Extensions.GitHub
     [DisplayName("GitHub Account")]
     [Description("Use an account on GitHub to connect to GitHub resources")]
     [PersistFrom("Inedo.Extensions.GitHub.Credentials.GitHubSecureCredentials,GitHub")]
-    public sealed class GitHubAccount : GitServiceCredentials<GitHubServiceInfo>
+    public sealed class GitHubAccount : GitServiceCredentials<GitHubServiceInfo>, IIssueTrackerServiceCredentials
     {
         [Persistent]
         [DisplayName("User name")]

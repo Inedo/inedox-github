@@ -31,6 +31,8 @@ namespace Inedo.Extensions.GitHub
             else
                 return Uri.EscapeDataString(this.OrganizationName ?? string.Empty);
         }
+
+        public override string ToString() => $"{this.OrganizationName}/{this.RepositoryName}";
     }
 
     internal static class GitHubOperationExtensions
@@ -52,7 +54,7 @@ namespace Inedo.Extensions.GitHub
             }
             else
             {
-                resource = (GitHubRepository)SecureResource.TryCreate(operation.ResourceName, context);
+                resource = (GitHubRepository)SecureResource.TryCreate(SecureResourceType.GitRepository, operation.ResourceName, context);
                 if (resource == null)
                 {
                     credentials = null;

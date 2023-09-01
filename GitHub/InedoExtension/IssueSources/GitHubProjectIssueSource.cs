@@ -15,8 +15,8 @@ using Inedo.Web;
 
 namespace Inedo.Extensions.GitHub.IssueSources
 {
-    [DisplayName("GitHub Project Source")]
-    [Description("Issue source for GitHub based on projects.")]
+    [DisplayName("[Obsolete] GitHub Project Source")]
+    [Description("Legacy issue source based on Projects; replace with GitHub Issue Tracker.")]
     public sealed class GitHubProjectIssueSource : IssueSource<GitHubRepository>
     {
         [Persistent]

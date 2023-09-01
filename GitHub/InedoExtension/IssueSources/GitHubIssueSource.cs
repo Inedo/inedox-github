@@ -15,8 +15,8 @@ using Inedo.Web;
 
 namespace Inedo.Extensions.GitHub.IssueSources
 {
-    [DisplayName("GitHub Issue Source")]
-    [Description("Issue source for GitHub based on milestones.")]
+    [DisplayName("[Obsolete] GitHub Issue Source")]
+    [Description("Legacy issue source; replace with GitHub Issue Tracker.")]
     public sealed class GitHubIssueSource : IssueSource<GitHubRepository>, IMissingPersistentPropertyHandler
     {
         [Persistent]
@@ -55,7 +55,7 @@ namespace Inedo.Extensions.GitHub.IssueSources
 
         public override async IAsyncEnumerable<IIssueTrackerIssue> EnumerateIssuesAsync(IIssueSourceEnumerationContext context, [EnumeratorCancellation] CancellationToken cancellationToken = default)
         {
-            var resource = SecureResource.TryCreate(this.ResourceName, new ResourceResolutionContext(context.ProjectId)) as GitHubRepository;
+            var resource = SecureResource.TryCreate(SecureResourceType.GitRepository, this.ResourceName, new ResourceResolutionContext(context.ProjectId)) as GitHubRepository;
             var credentials = resource?.GetCredentials(new CredentialResolutionContext(context.ProjectId, null)) as GitHubAccount;
             if (resource == null)
                 throw new InvalidOperationException($"A resource must be supplied to enumerate GitHub issues.");
@@ -70,26 +70,33 @@ namespace Inedo.Extensions.GitHub.IssueSources
             if (string.IsNullOrEmpty(ownerName))
                 throw new InvalidOperationException("A organization or user name must be defined to enumerate GitHub issues.");
 
-            var filter = new GitHubIssueFilter
-            {
-                Labels = this.Labels,
-                CustomFilterQueryString = this.CustomFilterQueryString
-            };
+            var projectId = new GitHubProjectId(ownerName, repositoryName);
 
-            if (!string.IsNullOrEmpty(this.MilestoneTitle))
+            GitHubIssueFilter filter;
+            if (string.IsNullOrEmpty(this.CustomFilterQueryString))
             {
-                int? milestoneId = await client.FindMilestoneAsync(this.MilestoneTitle, ownerName, repositoryName, cancellationToken).ConfigureAwait(false);
-                if (milestoneId == null)
-                    throw new InvalidOperationException($"Milestone '{this.MilestoneTitle}' not found in repository '{repositoryName}' owned by '{ownerName}'.");
-
-                filter.Milestone = milestoneId.ToString();
+                filter = new GitHubIssueFilter(this.CustomFilterQueryString);
             }
             else
             {
-                filter.Milestone = "*";
+                string milestoneTitle;
+                if (!string.IsNullOrEmpty(this.MilestoneTitle))
+                {
+                    var m = await client.FindMilestoneAsync(this.MilestoneTitle, projectId, cancellationToken).ConfigureAwait(false);
+                    if (m == null)
+                        throw new InvalidOperationException($"Milestone '{this.MilestoneTitle}' not found in repository '{repositoryName}' owned by '{ownerName}'.");
+
+                    milestoneTitle = m.Number.ToString();
+                }
+                else
+                {
+                    milestoneTitle = "*";
+                }
+                filter = new GitHubIssueFilter(milestoneTitle, this.Labels);
+
             }
 
-            await foreach (var i in client.GetIssuesAsync(ownerName, repositoryName, filter, cancellationToken).ConfigureAwait(false))
+            await foreach (var i in client.GetIssuesAsync(projectId, filter, cancellationToken).ConfigureAwait(false))
                 yield return i;
         }
 

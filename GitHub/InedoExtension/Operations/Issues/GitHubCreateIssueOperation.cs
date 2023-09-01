@@ -11,9 +11,7 @@ using Inedo.Web;
 
 namespace Inedo.Extensions.GitHub.Operations.Issues
 {
-    [DisplayName("Create GitHub Issue")]
     [Description("Creates an issue on a GitHub repository.")]
-    [Tag("issue-tracking")]
     [ScriptAlias("Create-Issue")]
     [ScriptNamespace("GitHub", PreferUnqualified = false)]
     public sealed class GitHubCreateIssueOperation : GitHubOperationBase
@@ -52,8 +50,8 @@ namespace Inedo.Extensions.GitHub.Operations.Issues
             if (this.Assignees != null)
                 data.Add("assignees", this.Assignees);
             if (!string.IsNullOrEmpty(this.Milestone))
-                data.Add("milestone", await github.CreateMilestoneAsync(this.Milestone, AH.CoalesceString(resource.OrganizationName, credentials.UserName), resource.RepositoryName, context.CancellationToken));
-            this.IssueNumber = await github.CreateIssueAsync(AH.CoalesceString(resource.OrganizationName, credentials.UserName), resource.RepositoryName, data, context.CancellationToken).ConfigureAwait(false);
+                data.Add("milestone", await github.CreateMilestoneAsync(this.Milestone, new GitHubProjectId(AH.CoalesceString(resource.OrganizationName, credentials.UserName), resource.RepositoryName), context.CancellationToken));
+            this.IssueNumber = await github.CreateIssueAsync(new GitHubProjectId(AH.CoalesceString(resource.OrganizationName, credentials.UserName), resource.RepositoryName), data, context.CancellationToken).ConfigureAwait(false);
         }
 
         protected override ExtendedRichDescription GetDescription(IOperationConfiguration config)

@@ -41,6 +41,8 @@ namespace Inedo.Extensions.GitHub
             set => this.OrganizationName = value;
         }
 
+        private GitHubProjectId ProjectId => new GitHubProjectId(this.OrganizationName, this.RepositoryName);
+
 
         public override RichDescription GetDescription()
         {
@@ -51,32 +53,32 @@ namespace Inedo.Extensions.GitHub
         public override async Task<IGitRepositoryInfo> GetRepositoryInfoAsync(ICredentialResolutionContext context, CancellationToken cancellationToken = default)
         {
             var github = new GitHubClient((GitHubAccount)this.GetCredentials(context), this);
-            return await github.GetRepositoryAsync(this.OrganizationName, this.RepositoryName, cancellationToken).ConfigureAwait(false);
+            return await github.GetRepositoryAsync(this.ProjectId, cancellationToken).ConfigureAwait(false);
         }
         public override IAsyncEnumerable<GitRemoteBranch> GetRemoteBranchesAsync(ICredentialResolutionContext context, CancellationToken cancellationToken = default)
         {
             var github = new GitHubClient((GitHubAccount)this.GetCredentials(context), this);
-            return github.GetBranchesAsync(this.OrganizationName, this.RepositoryName, cancellationToken);
+            return github.GetBranchesAsync(this.ProjectId, cancellationToken);
         }
         public override IAsyncEnumerable<GitPullRequest> GetPullRequestsAsync(ICredentialResolutionContext context, bool includeClosed = false, CancellationToken cancellationToken = default)
         {
             var github = new GitHubClient((GitHubAccount)this.GetCredentials(context), this);
-            return github.GetPullRequestsAsync(this.OrganizationName, this.RepositoryName, includeClosed, cancellationToken);
+            return github.GetPullRequestsAsync(this.ProjectId, includeClosed, cancellationToken);
         }
         public override Task SetCommitStatusAsync(ICredentialResolutionContext context, string commit, string status, string description = null, string statusContext = null, CancellationToken cancellationToken = default)
         {
             var github = new GitHubClient((GitHubAccount)this.GetCredentials(context), this);
-            return github.SetCommitStatusAsync(this.OrganizationName, this.RepositoryName, commit, status, description, statusContext, cancellationToken);
+            return github.SetCommitStatusAsync(this.ProjectId, commit, status, description, statusContext, cancellationToken);
         }
         public override Task MergePullRequestAsync(ICredentialResolutionContext context, string id, string headCommit, string commitMessage = null, string method = null, CancellationToken cancellationToken = default)
         {
             var github = new GitHubClient((GitHubAccount)this.GetCredentials(context), this);
-            return github.MergePullRequestAsync(this.OrganizationName, this.RepositoryName, int.Parse(id), headCommit, commitMessage, method, cancellationToken);
+            return github.MergePullRequestAsync(this.ProjectId, int.Parse(id), headCommit, commitMessage, method, cancellationToken);
         }
         public override async Task<string> CreatePullRequestAsync(ICredentialResolutionContext context, string sourceBranch, string targetBranch, string title, string description = null, CancellationToken cancellationToken = default)
         {
             var github = new GitHubClient((GitHubAccount)this.GetCredentials(context), this);
-            return (await github.CreatePullRequestAsync(this.OrganizationName, this.RepositoryName, sourceBranch, targetBranch, title, description, cancellationToken).ConfigureAwait(false)).ToString();
+            return (await github.CreatePullRequestAsync(this.ProjectId, sourceBranch, targetBranch, title, description, cancellationToken).ConfigureAwait(false)).ToString();
         }
 
         void IMissingPersistentPropertyHandler.OnDeserializedMissingProperties(IReadOnlyDictionary<string, string> missingProperties)

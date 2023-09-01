@@ -29,7 +29,7 @@ namespace Inedo.Extensions.GitHub.SuggestionProviders
 
             var resourceName = config[nameof(IGitHubConfiguration.ResourceName)];
             if (!string.IsNullOrEmpty(resourceName))
-                this.Resource = SecureResource.TryCreate(resourceName, context) as GitHubRepository;
+                this.Resource = SecureResource.TryCreate(SecureResourceType.GitRepository, resourceName, context) as GitHubRepository;
 
             if (this.Credentials == null && this.Resource != null)
                 this.Credentials = this.Resource.GetCredentials(context) as GitHubAccount;

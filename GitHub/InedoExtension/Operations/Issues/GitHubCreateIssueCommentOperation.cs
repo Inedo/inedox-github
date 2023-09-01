@@ -9,9 +9,7 @@ using Inedo.Web;
 
 namespace Inedo.Extensions.GitHub.Operations.Issues
 {
-    [DisplayName("Add Comment to GitHub Issue")]
     [Description("Adds a comment to an issue on GitHub.")]
-    [Tag("issue-tracking")]
     [ScriptAlias("Create-IssueComment")]
     [ScriptNamespace("GitHub", PreferUnqualified = false)]
     public sealed class GitHubCreateIssueCommentOperation : GitHubOperationBase

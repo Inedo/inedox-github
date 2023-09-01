@@ -14,9 +14,7 @@ using Inedo.Web;
 
 namespace Inedo.Extensions.GitHub.Operations.Releases
 {
-    [DisplayName("Upload GitHub Release Assets")]
     [Description("Uploads files as attachments to a GitHub release.")]
-    [Tag("source-control"), Tag("git"), Tag("github")]
     [ScriptAlias("Upload-ReleaseAssets")]
     [ScriptAlias("GitHub-Upload-Release-Assets", Obsolete = true)]
     [ScriptNamespace("GitHub", PreferUnqualified = false)]

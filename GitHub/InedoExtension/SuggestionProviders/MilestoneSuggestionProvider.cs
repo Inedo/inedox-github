@@ -17,7 +17,7 @@ namespace Inedo.Extensions.GitHub.SuggestionProviders
             if (string.IsNullOrEmpty(ownerName) || string.IsNullOrEmpty(repositoryName))
                 return Enumerable.Empty<string>();
 
-            var milestones = await MakeAsync(this.Client.GetMilestonesAsync(ownerName, repositoryName, "open", CancellationToken.None)).ConfigureAwait(false);
+            var milestones = await MakeAsync(this.Client.GetMilestonesAsync(new GitHubProjectId(ownerName, repositoryName), "open", CancellationToken.None)).ConfigureAwait(false);
             return milestones.Select(m => m.Title);
         }
     }
