@@ -1,5 +1,4 @@
-﻿#nullable enable
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Net;
@@ -16,6 +15,8 @@ using Inedo.ExecutionEngine.Executer;
 using Inedo.Extensibility.Git;
 using Inedo.Extensions.GitHub.IssueSources;
 
+#nullable enable
+
 namespace Inedo.Extensions.GitHub.Clients;
 
 internal sealed class GitHubClient : ILogSink
@@ -28,6 +29,7 @@ internal sealed class GitHubClient : ILogSink
     };
     private readonly string apiBaseUrl;
     private readonly ILogSink? log;
+
     void ILogSink.Log(IMessage message) => this.log?.Log(message);
 
     public GitHubClient(string? apiBaseUrl, string userName, SecureString password, ILogSink? log = null)
@@ -130,9 +132,10 @@ internal sealed class GitHubClient : ILogSink
         {
             foreach (var pr in d.RootElement.EnumerateArray())
             {
+                if (!tryGetId(pr, "head", out long sourceRepoId) || !tryGetId(pr, "base", out long targetRepoId))
+                    continue;
+
                 // skip requests from other repositories for now
-                long sourceRepoId = pr.GetProperty("head").GetProperty("repo").GetProperty("id").GetInt64();
-                long targetRepoId = pr.GetProperty("base").GetProperty("repo").GetProperty("id").GetInt64();
                 if (sourceRepoId != targetRepoId)
                     continue;
 
@@ -144,6 +147,24 @@ internal sealed class GitHubClient : ILogSink
                 var to = pr.GetProperty("base").GetProperty("ref").GetString();
 
                 yield return new GitPullRequest(id, url, title, closed, from, to);
+            }
+
+            static bool tryGetId(JsonElement element, string name, out long id)
+            {
+                if (element.TryGetProperty(name, out var root) && root.ValueKind == JsonValueKind.Object)
+                {
+                    if (root.TryGetProperty("repo", out var repo) && repo.ValueKind == JsonValueKind.Object)
+                    {
+                        if (repo.TryGetProperty("id", out var idProperty) && idProperty.ValueKind == JsonValueKind.Number)
+                        {
+                            id = idProperty.GetInt64();
+                            return true;
+                        }
+                    }
+                }
+
+                id = 0;
+                return false;
             }
         }
     }
