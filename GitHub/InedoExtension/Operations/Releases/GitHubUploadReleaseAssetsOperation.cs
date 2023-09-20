@@ -101,7 +101,7 @@ namespace Inedo.Extensions.GitHub.Operations.Releases
 
                 using var stream = await fileOps.OpenFileAsync(file.FullName, FileMode.Open, FileAccess.Read).ConfigureAwait(false);
 
-                var contentType = (string.IsNullOrWhiteSpace(this.ContentType) ? MimeMapping.GetMimeMapping(file.Name) : null) ?? "application/octet-stream";
+                var contentType = string.IsNullOrWhiteSpace(this.ContentType) ? "application/octet-stream" : this.ContentType;
 
                 this.LogDebug($"Uploading {file.FullName} as {contentType} ({AH.FormatSize(file.Size)})...");
                 await github.UploadReleaseAssetAsync(
