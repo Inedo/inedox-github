@@ -1,11 +1,9 @@
 ﻿using System;
-using System.Collections.Generic;
 using System.ComponentModel;
 using System.Threading.Tasks;
 using Inedo.Documentation;
 using Inedo.Extensibility;
 using Inedo.Extensibility.Configurations;
-using Inedo.Extensibility.Credentials;
 using Inedo.Extensibility.Operations;
 using Inedo.Extensions.GitHub.Clients;
 using Inedo.Extensions.GitHub.Configurations;
@@ -19,7 +17,7 @@ namespace Inedo.Extensions.GitHub.Operations.Issues
     {
         public override async Task<PersistedConfiguration> CollectAsync(IOperationCollectionContext context)
         {
-            var (credentials, resource) = this.Template.GetCredentialsAndResource(context as ICredentialResolutionContext);
+            var (credentials, resource) = this.Template.GetCredentialsAndResource(context);
             var github = new GitHubClient(credentials, resource, this);
 
             GitHubMilestone milestone = null;
@@ -33,38 +31,49 @@ namespace Inedo.Extensions.GitHub.Operations.Issues
             }
 
             if (milestone == null)
-            {
-                return new GitHubMilestoneConfiguration
-                {
-                    Exists = false
-                };
-            }
+                return new GitHubMilestoneConfiguration { Exists = false };
 
             return new GitHubMilestoneConfiguration
             {
                 Exists = true,
                 Title = milestone?.Title ?? string.Empty,
                 Description = milestone?.Description ?? string.Empty,
-                DueDate = milestone?.DueOn?[..10],
-                State = (GitHubMilestoneConfiguration.OpenOrClosed)Enum.Parse(typeof(GitHubMilestoneConfiguration.OpenOrClosed), milestone?.State)
+                DueDate = milestone?.DueOn,
+                State = milestone?.State
             };
         }
 
         public override async Task ConfigureAsync(IOperationExecutionContext context)
         {
-            var (credentials, resource) = this.Template.GetCredentialsAndResource(context as ICredentialResolutionContext);
+            var (credentials, resource) = this.Template.GetCredentialsAndResource(context);
             var github = new GitHubClient(credentials, resource, this);
-            var number = await github.CreateMilestoneAsync(this.Template.Title, new GitHubProjectId(AH.CoalesceString(resource.OrganizationName, credentials.UserName), resource.RepositoryName), context.CancellationToken).ConfigureAwait(false);
 
-            var data = new Dictionary<string, object> { ["title"] = this.Template.Title };
-            if (this.Template.DueDate != null)
-                data.Add("due_on", this.Template.DueDate + "T" + DateTime.UtcNow.ToString("HH:mm:ss"));
-            if (this.Template.Description != null)
-                data.Add("description", this.Template.Description);
-            if (this.Template.State.HasValue)
-                data.Add("state", this.Template.State.ToString());
+            var project = new GitHubProjectId(AH.CoalesceString(resource.OrganizationName, credentials.UserName), resource.RepositoryName);
 
-            await github.UpdateMilestoneAsync(number, new GitHubProjectId(AH.CoalesceString(resource.OrganizationName, credentials.UserName), resource.RepositoryName), data, context.CancellationToken).ConfigureAwait(false);
+            var milestone = await github.CreateMilestoneAsync(this.Template.Title, this.Template, project, context.CancellationToken).ConfigureAwait(false);
+
+            bool update = false;
+
+            if (this.Template.DueOn != null && milestone.DueOn != this.Template.DueOn)
+            {
+                milestone.DueOn = this.Template.DueOn;
+                update = true;
+            }
+
+            if (this.Template.Description != null && milestone.Description != this.Template.Description)
+            {
+                milestone.Description = this.Template.Description;
+                update = true;
+            }
+
+            if (this.Template.State != null && milestone.State != this.Template.State)
+            {
+                milestone.State = this.Template.State;
+                update = true;
+            }
+
+            if (update)
+                await github.UpdateMilestoneAsync(milestone, new GitHubProjectId(AH.CoalesceString(resource.OrganizationName, credentials.UserName), resource.RepositoryName), context.CancellationToken).ConfigureAwait(false);
         }
 
         protected override ExtendedRichDescription GetDescription(IOperationConfiguration config)

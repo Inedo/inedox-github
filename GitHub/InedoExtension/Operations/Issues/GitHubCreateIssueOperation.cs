@@ -50,7 +50,8 @@ namespace Inedo.Extensions.GitHub.Operations.Issues
             if (this.Assignees != null)
                 data.Add("assignees", this.Assignees);
             if (!string.IsNullOrEmpty(this.Milestone))
-                data.Add("milestone", await github.CreateMilestoneAsync(this.Milestone, new GitHubProjectId(AH.CoalesceString(resource.OrganizationName, credentials.UserName), resource.RepositoryName), context.CancellationToken));
+                data.Add("milestone", await github.CreateMilestoneAsync(this.Milestone, null, new GitHubProjectId(AH.CoalesceString(resource.OrganizationName, credentials.UserName), resource.RepositoryName), context.CancellationToken));
+
             this.IssueNumber = await github.CreateIssueAsync(new GitHubProjectId(AH.CoalesceString(resource.OrganizationName, credentials.UserName), resource.RepositoryName), data, context.CancellationToken).ConfigureAwait(false);
         }
 

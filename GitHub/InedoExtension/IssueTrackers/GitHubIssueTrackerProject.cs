@@ -1,6 +1,4 @@
-﻿#nullable enable
-
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.ComponentModel;
 using System.Runtime.CompilerServices;
@@ -13,6 +11,8 @@ using Inedo.Extensibility.IssueTrackers;
 using Inedo.Extensions.GitHub.Clients;
 using Inedo.Serialization;
 using Inedo.Web;
+
+#nullable enable
 
 namespace Inedo.Extensions.GitHub.IssueTrackers;
 
@@ -99,19 +99,28 @@ public sealed  class GitHubIssueTrackerProject : IssueTrackerProject<GitHubAccou
         var milestone = await client.FindMilestoneAsync(version.Version, this.ProjectId, cancellationToken).ConfigureAwait(false);
         if (milestone == null)
         {
-            await client.CreateMilestoneAsync(version.Version, this.ProjectId, cancellationToken).ConfigureAwait(false);
+            await client.CreateMilestoneAsync(version.Version, null, this.ProjectId, cancellationToken).ConfigureAwait(false);
             if (version.IsClosed)
             {
                 milestone = await client.FindMilestoneAsync(version.Version, this.ProjectId, cancellationToken).ConfigureAwait(false)
                     ?? throw new InvalidOperationException("Created milestone was not found.");
-                await client.UpdateMilestoneAsync(milestone, this.ProjectId, new { state_event = "close" }, cancellationToken).ConfigureAwait(false);
+
+                milestone.State = "closed";
+
+                await client.UpdateMilestoneAsync(milestone, this.ProjectId, cancellationToken).ConfigureAwait(false);
             }
         }
         else if (version.IsClosed && milestone.State != "closed")
-            await client.UpdateMilestoneAsync(milestone, this.ProjectId, new { state_event = "close" }, cancellationToken).ConfigureAwait(false);
+        {
+            milestone.State = "closed";
 
+            await client.UpdateMilestoneAsync(milestone, this.ProjectId, cancellationToken).ConfigureAwait(false);
+        }
         else if (!version.IsClosed && milestone.State == "closed")
-            await client.UpdateMilestoneAsync(milestone, this.ProjectId, new { state_event = "open" }, cancellationToken).ConfigureAwait(false);
+        {
+            milestone.State = "open";
+            await client.UpdateMilestoneAsync(milestone, this.ProjectId,  cancellationToken).ConfigureAwait(false);
+        }
     }
 
     public override async IAsyncEnumerable<IssueTrackerIssue> EnumerateIssuesAsync(IIssuesEnumerationContext context, [EnumeratorCancellation] CancellationToken cancellationToken = default)

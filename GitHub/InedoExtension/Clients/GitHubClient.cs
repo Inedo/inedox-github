@@ -14,6 +14,7 @@ using System.Threading.Tasks;
 using Inedo.Diagnostics;
 using Inedo.ExecutionEngine.Executer;
 using Inedo.Extensibility.Git;
+using Inedo.Extensions.GitHub.Configurations;
 using Inedo.Extensions.GitHub.IssueSources;
 
 #nullable enable
@@ -274,31 +275,36 @@ internal sealed class GitHubClient : ILogSink
         ).ConfigureAwait(false);
     }
 
-    public async Task<GitHubMilestone> CreateMilestoneAsync(string milestoneTitle, GitHubProjectId project, CancellationToken cancellationToken)
+    public async Task<GitHubMilestone> CreateMilestoneAsync(string milestoneTitle, GitHubMilestoneConfiguration? template, GitHubProjectId project, CancellationToken cancellationToken)
     {
         var milestone = await this.FindMilestoneAsync(milestoneTitle, project, cancellationToken).ConfigureAwait(false);
         if (milestone != null)
             return milestone;
 
-
         using var doc = await this.InvokeAsync(
             HttpMethod.Post,
             $"{this.apiBaseUrl}/repos/{Esc(project.OrganizationName)}/{Esc(project.RepositoryName)}/milestones",
-            new { title = milestone },
+            new
+            {
+                title = milestoneTitle,
+                description = template?.Description,
+                due_on = template?.DueOn,
+                state = template?.State
+            },
             cancellationToken: cancellationToken
         ).ConfigureAwait(false);
+
         if (doc == null)
             throw new ArgumentException("Project not found: " + project);
 
-        return doc.Deserialize<GitHubMilestone>()
-            ?? throw new InvalidOperationException("Milestone was empty");
+        return doc.Deserialize<GitHubMilestone>() ?? throw new InvalidOperationException("Milestone was empty.");
     }
-    public async Task UpdateMilestoneAsync(GitHubMilestone milestone, GitHubProjectId project, object data, CancellationToken cancellationToken)
+    public async Task UpdateMilestoneAsync(GitHubMilestone milestone, GitHubProjectId project, CancellationToken cancellationToken)
     {
         using var doc = await this.InvokeAsync(
             HttpMethod.Patch,
             $"{this.apiBaseUrl}/repos/{Esc(project.OrganizationName)}/{Esc(project.RepositoryName)}/milestones/{milestone.Number}",
-            data,
+            milestone,
             cancellationToken: cancellationToken
         ).ConfigureAwait(false);
     }
