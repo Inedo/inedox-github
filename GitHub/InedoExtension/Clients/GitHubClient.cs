@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.IO;
+using System.Linq;
 using System.Net;
 using System.Net.Http;
 using System.Net.Http.Headers;
@@ -29,6 +30,7 @@ internal sealed class GitHubClient : ILogSink
     };
     private readonly string apiBaseUrl;
     private readonly ILogSink? log;
+    private readonly HttpClient httpClient;
 
     void ILogSink.Log(IMessage message) => this.log?.Log(message);
 
@@ -37,10 +39,11 @@ internal sealed class GitHubClient : ILogSink
         if (!string.IsNullOrEmpty(userName) && password == null)
             throw new InvalidOperationException("If a username is specified, a password must be specified in the operation or in the resource credential.");
 
-        this.apiBaseUrl = AH.CoalesceString(apiBaseUrl, GitHubClient.GitHubComUrl).TrimEnd('/');
+        this.apiBaseUrl = AH.CoalesceString(apiBaseUrl, GitHubComUrl).TrimEnd('/');
         this.UserName = userName;
         this.Password = password;
         this.log = log;
+        this.httpClient = CreateHttpClient(this.apiBaseUrl, AH.Unprotect(password));
     }
     public GitHubClient(GitHubAccount credentials, GitHubRepository resource, ILogSink? log = null)
     {
@@ -48,6 +51,7 @@ internal sealed class GitHubClient : ILogSink
         this.UserName = credentials?.UserName;
         this.Password = credentials?.Password;
         this.log = log;
+        this.httpClient = CreateHttpClient(this.apiBaseUrl, AH.Unprotect(credentials?.Password));
     }
 
     public string? UserName { get; }
@@ -298,16 +302,6 @@ internal sealed class GitHubClient : ILogSink
             cancellationToken: cancellationToken
         ).ConfigureAwait(false);
     }
-    [Obsolete]
-    public async Task UpdateMilestoneAsync(int milestoneNumber, string ownerName, string repositoryName, object data, CancellationToken cancellationToken)
-    {
-        using var doc = await this.InvokeAsync(
-            HttpMethod.Patch,
-            $"{this.apiBaseUrl}/repos/{Esc(ownerName)}/{Esc(repositoryName)}/milestones/{milestoneNumber}",
-            data,
-            cancellationToken: cancellationToken
-        ).ConfigureAwait(false);
-    }
 
     public async Task CreateStatusAsync(string ownerName, string repositoryName, string commitHash, string state, string target_url, string description, string context, CancellationToken cancellationToken)
     {
@@ -465,17 +459,22 @@ internal sealed class GitHubClient : ILogSink
             ?? throw new InvalidOperationException("Unable to deserialize document: ");
     }
 
-    public async Task UploadReleaseAssetAsync(string ownerName, string repositoryName, string tag, string name, string contentType, Stream contents, Action<long> _, CancellationToken cancellationToken)
+    public async Task UploadReleaseAssetAsync(string ownerName, string repositoryName, string tag, string name, string contentType, Stream contents, CancellationToken cancellationToken)
     {
-        var release = await this.GetReleaseAsync(ownerName, repositoryName, tag, cancellationToken).ConfigureAwait(false);
-        if (release == null)
-            throw new ExecutionFailureException($"No release found with tag {tag} in repository {ownerName}/{repositoryName}");
+        var release = (await this.GetReleaseAsync(ownerName, repositoryName, tag, cancellationToken).ConfigureAwait(false))
+            ?? throw new ExecutionFailureException($"No release found with tag {tag} in repository {ownerName}/{repositoryName}");
+
+        if (release.Assets?.Select(a => a.Name).Contains(name) ?? false)
+        {
+            this.LogError($"Release {tag} already has an asset named {name}.");
+            return;
+        }
 
         var uploadUrl = FormatTemplateUri(release.UploadUrl, name);
 
         using var content = new StreamContent(contents);
         content.Headers.ContentType = new MediaTypeHeaderValue(contentType);
-        using var response = await SDK.CreateHttpClient().PostAsync(uploadUrl, content, cancellationToken).ConfigureAwait(false);
+        using var response = await this.httpClient.PostAsync(uploadUrl, content, cancellationToken).ConfigureAwait(false);
         if (!response.IsSuccessStatusCode)
             throw await GetErrorResponseExceptionAsync(response).ConfigureAwait(false);
     }
@@ -530,12 +529,6 @@ internal sealed class GitHubClient : ILogSink
     {
         this.log?.LogDebug($"{method} {url}");
         using var request = new HttpRequestMessage(method, url);
-        request.Headers.Accept.ParseAdd("application/vnd.github.v3+json");
-        foreach (var preview in EnabledPreviews)
-            request.Headers.Accept.ParseAdd(preview);
-
-        if (!string.IsNullOrEmpty(this.UserName))
-            request.Headers.Authorization = new AuthenticationHeaderValue("token", AH.Unprotect(this.Password));
 
         if (data != null)
         {
@@ -545,7 +538,7 @@ internal sealed class GitHubClient : ILogSink
             request.Content = content;
         }
 
-        using var response = await SDK.CreateHttpClient().SendAsync(request, cancellationToken).ConfigureAwait(false);
+        using var response = await this.httpClient.SendAsync(request, cancellationToken).ConfigureAwait(false);
         if (!response.IsSuccessStatusCode)
         {
             if (nullOn404 && response.StatusCode == HttpStatusCode.NotFound)
@@ -560,19 +553,12 @@ internal sealed class GitHubClient : ILogSink
     private async IAsyncEnumerable<T> InvokePagesAsync<T>(string url, Func<JsonDocument, IEnumerable<T>> getItems, [EnumeratorCancellation] CancellationToken cancellationToken)
     {
         var currentUrl = url;
-        var client = SDK.CreateHttpClient();
 
         while (currentUrl != null)
         {
             using var request = new HttpRequestMessage(HttpMethod.Get, currentUrl);
-            request.Headers.Accept.ParseAdd("application/vnd.github.v3+json");
-            foreach (var preview in EnabledPreviews)
-                request.Headers.Accept.ParseAdd(preview);
 
-            if (!string.IsNullOrEmpty(this.UserName))
-                request.Headers.Authorization = new AuthenticationHeaderValue("token", AH.Unprotect(this.Password));
-
-            using var response = await client.SendAsync(request, cancellationToken).ConfigureAwait(false);
+            using var response = await this.httpClient.SendAsync(request, cancellationToken).ConfigureAwait(false);
             if (!response.IsSuccessStatusCode)
                 throw await GetErrorResponseExceptionAsync(response).ConfigureAwait(false);
 
@@ -616,5 +602,18 @@ internal sealed class GitHubClient : ILogSink
             return value.GetString();
         else
             return null;
+    }
+    private static HttpClient CreateHttpClient(string baseUrl, string? password)
+    {
+        var http = SDK.CreateHttpClient();
+        http.BaseAddress = new Uri(baseUrl.EndsWith('/') ? baseUrl : (baseUrl + "/"));
+        if (!string.IsNullOrEmpty(password))
+            http.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("token", password);
+
+        http.DefaultRequestHeaders.Accept.ParseAdd("application/vnd.github.v3+json");
+        foreach (var preview in EnabledPreviews)
+            http.DefaultRequestHeaders.Accept.ParseAdd(preview);
+
+        return http;
     }
 }

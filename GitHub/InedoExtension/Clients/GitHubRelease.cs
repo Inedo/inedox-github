@@ -20,5 +20,7 @@ namespace Inedo.Extensions.GitHub.Clients
         public bool? Prerelease { get; set; }
         [JsonPropertyName("upload_url")]
         public string UploadUrl { get; set; }
+        [JsonPropertyName("assets")]
+        public GitHubReleaseAsset[] Assets { get; set; }
     }
 }

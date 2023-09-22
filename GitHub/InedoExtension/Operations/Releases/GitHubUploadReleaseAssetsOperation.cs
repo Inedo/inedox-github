@@ -5,12 +5,14 @@ using System.Threading.Tasks;
 using Inedo.Agents;
 using Inedo.Diagnostics;
 using Inedo.Documentation;
+using Inedo.ExecutionEngine.Executer;
 using Inedo.Extensibility;
-using Inedo.Extensibility.Credentials;
 using Inedo.Extensibility.Operations;
 using Inedo.Extensions.GitHub.Clients;
 using Inedo.IO;
 using Inedo.Web;
+
+#nullable enable
 
 namespace Inedo.Extensions.GitHub.Operations.Releases
 {
@@ -21,36 +23,36 @@ namespace Inedo.Extensions.GitHub.Operations.Releases
     public sealed class GitHubUploadReleaseAssetsOperation : GitHubOperationBase
     {
         private readonly object progressLock = new();
-        private SlimFileInfo currentFile;
+        private SlimFileInfo? currentFile;
         private long currentPosition;
 
         [Required]
         [ScriptAlias("Tag")]
         [Description("The tag associated with the release. The release must already exist.")]
-        public string Tag { get; set; }
+        public string? Tag { get; set; }
 
         [ScriptAlias("Include")]
         [Category("File Masks")]
         [DisplayName("Include files")]
         [MaskingDescription]
-        public IEnumerable<string> Includes { get; set; }
+        public IEnumerable<string>? Includes { get; set; }
         [ScriptAlias("Exclude")]
         [Category("File Masks")]
         [DisplayName("Exclude files")]
         [MaskingDescription]
-        public IEnumerable<string> Excludes { get; set; }
+        public IEnumerable<string>? Excludes { get; set; }
         [ScriptAlias("Directory")]
         [DisplayName("From directory")]
         [PlaceholderText("$WorkingDirectory")]
-        public string SourceDirectory { get; set; }
+        public string? SourceDirectory { get; set; }
 
         [Category("Advanced")]
         [ScriptAlias("ContentType")]
         [DisplayName("Content type")]
         [PlaceholderText("detect from file extension")]
-        public string ContentType { get; set; }
+        public string? ContentType { get; set; }
 
-        public override OperationProgress GetProgress()
+        public override OperationProgress? GetProgress()
         {
             SlimFileInfo file;
             long pos;
@@ -69,7 +71,10 @@ namespace Inedo.Extensions.GitHub.Operations.Releases
 
         public override async Task ExecuteAsync(IOperationExecutionContext context)
         {
-            var sourceDirectory = context.ResolvePath(this.SourceDirectory);
+            if (string.IsNullOrEmpty(this.Tag))
+                throw new ExecutionFailureException("Missing required argument: Tag");
+
+            var sourceDirectory = context.ResolvePath(this.SourceDirectory ?? string.Empty);
 
             var fileOps = await context.Agent.GetServiceAsync<IFileOperationsExecuter>().ConfigureAwait(false);
 
@@ -80,10 +85,14 @@ namespace Inedo.Extensions.GitHub.Operations.Releases
                 return;
             }
 
-            var (credentials, resource) = this.GetCredentialsAndResource(context as ICredentialResolutionContext);
+            var (credentials, resource) = this.GetCredentialsAndResource(context);
             var github = new GitHubClient(credentials, resource, this);
+            if (resource is null)
+                throw new ExecutionFailureException("Could not determine repository owner. Specify credentials using the From or UserName arguments.");
 
-            var ownerName = AH.CoalesceString(resource.OrganizationName, credentials.UserName);
+            var ownerName = AH.CoalesceString(resource?.OrganizationName, credentials?.UserName);
+            if (string.IsNullOrEmpty(ownerName))
+                throw new ExecutionFailureException("Could not determine repository owner. Specify credentials using the From or UserName arguments.");
 
             foreach (var info in files)
             {
@@ -101,17 +110,16 @@ namespace Inedo.Extensions.GitHub.Operations.Releases
 
                 using var stream = await fileOps.OpenFileAsync(file.FullName, FileMode.Open, FileAccess.Read).ConfigureAwait(false);
 
-                var contentType = string.IsNullOrWhiteSpace(this.ContentType) ? "application/octet-stream" : this.ContentType;
+                var contentType = string.IsNullOrWhiteSpace(this.ContentType) ? MimeMapping.GetMimeMapping(file.Name) : this.ContentType;
 
                 this.LogDebug($"Uploading {file.FullName} as {contentType} ({AH.FormatSize(file.Size)})...");
                 await github.UploadReleaseAssetAsync(
                     ownerName,
-                    resource.RepositoryName,
+                    resource!.RepositoryName,
                     this.Tag,
                     file.Name,
                     contentType,
                     stream,
-                    this.ReportProgress,
                     context.CancellationToken
                 ).ConfigureAwait(false);
 
