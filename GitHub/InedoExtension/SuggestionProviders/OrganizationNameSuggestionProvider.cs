@@ -1,18 +1,16 @@
 ﻿using System.Collections.Generic;
 using System.Linq;
 using System.Threading;
-using System.Threading.Tasks;
 
-namespace Inedo.Extensions.GitHub.SuggestionProviders
+namespace Inedo.Extensions.GitHub.SuggestionProviders;
+
+internal sealed class OrganizationNameSuggestionProvider : GitHubSuggestionProvider
 {
-    public sealed class OrganizationNameSuggestionProvider : GitHubSuggestionProvider
+    internal override IAsyncEnumerable<string> GetSuggestionsAsync(CancellationToken cancellationToken)
     {
-        internal override Task<IEnumerable<string>> GetSuggestionsAsync()
-        {
-            if (this.Credentials == null)
-                return Task.FromResult(Enumerable.Empty<string>());
+        if (this.Credentials == null)
+            return AsyncEnumerable.Empty<string>();
 
-            return MakeAsync(this.Client.GetOrganizationsAsync(CancellationToken.None));
-        }
+        return this.Client.GetOrganizationsAsync(cancellationToken);
     }
 }
