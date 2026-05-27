@@ -1,17 +1,15 @@
 ﻿using System.Collections.Generic;
 using System.Linq;
 using System.Threading;
-using System.Threading.Tasks;
 using Inedo.Extensions.GitHub.IssueSources;
 
-namespace Inedo.Extensions.GitHub.SuggestionProviders
+namespace Inedo.Extensions.GitHub.SuggestionProviders;
+
+internal sealed class ProjectNameSuggestionProvider : GitHubSuggestionProvider
 {
-    internal sealed class ProjectNameSuggestionProvider : GitHubSuggestionProvider
+    internal override IAsyncEnumerable<string> GetSuggestionsAsync(CancellationToken cancellationToken)
     {
-        internal override async Task<IEnumerable<string>> GetSuggestionsAsync()
-        {
-            var repositoryName = AH.NullIf(this.ComponentConfiguration[nameof(GitHubProjectIssueSource.RepositoryName)], string.Empty);
-            return (await MakeAsync(this.Client.GetProjectsAsync(this.Resource.OrganizationName, repositoryName, CancellationToken.None)).ConfigureAwait(false)).Select(p => p.Name);
-        }
+        var repositoryName = AH.NullIf(this.ComponentConfiguration[nameof(GitHubProjectIssueSource.RepositoryName)], string.Empty);
+        return this.Client.GetProjectsAsync(this.Resource.OrganizationName, repositoryName, cancellationToken).Select(p => p.Name);
     }
 }

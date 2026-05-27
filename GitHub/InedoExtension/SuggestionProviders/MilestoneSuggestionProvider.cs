@@ -1,24 +1,22 @@
 ﻿using System.Collections.Generic;
 using System.Linq;
 using System.Threading;
-using System.Threading.Tasks;
 
-namespace Inedo.Extensions.GitHub.SuggestionProviders
+namespace Inedo.Extensions.GitHub.SuggestionProviders;
+
+internal sealed class MilestoneSuggestionProvider : GitHubSuggestionProvider
 {
-    public sealed class MilestoneSuggestionProvider : GitHubSuggestionProvider
+    internal override IAsyncEnumerable<string> GetSuggestionsAsync(CancellationToken cancellationToken)
     {
-        internal async override Task<IEnumerable<string>> GetSuggestionsAsync()
-        {
-            string repositoryName = AH.CoalesceString(this.ComponentConfiguration[nameof(IGitHubConfiguration.RepositoryName)], this.Resource?.RepositoryName);
-            string ownerName = AH.CoalesceString(
-                this.ComponentConfiguration[nameof(IGitHubConfiguration.OrganizationName)], this.Resource?.OrganizationName,
-                this.ComponentConfiguration[nameof(IGitHubConfiguration.UserName)], this.Credentials?.UserName
-                );
-            if (string.IsNullOrEmpty(ownerName) || string.IsNullOrEmpty(repositoryName))
-                return Enumerable.Empty<string>();
+        string repositoryName = AH.CoalesceString(this.ComponentConfiguration[nameof(IGitHubConfiguration.RepositoryName)], this.Resource?.RepositoryName);
+        string ownerName = AH.CoalesceString(
+            this.ComponentConfiguration[nameof(IGitHubConfiguration.OrganizationName)], this.Resource?.OrganizationName,
+            this.ComponentConfiguration[nameof(IGitHubConfiguration.UserName)], this.Credentials?.UserName
+            );
+        if (string.IsNullOrEmpty(ownerName) || string.IsNullOrEmpty(repositoryName))
+            return AsyncEnumerable.Empty<string>();
 
-            var milestones = await MakeAsync(this.Client.GetMilestonesAsync(new GitHubProjectId(ownerName, repositoryName), "open", CancellationToken.None)).ConfigureAwait(false);
-            return milestones.Select(m => m.Title);
-        }
+        return this.Client.GetMilestonesAsync(new GitHubProjectId(ownerName, repositoryName), "open", cancellationToken)
+            .Select(m => m.Title);
     }
 }
